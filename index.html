@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="referrer" content="no-referrer" />
+  <title>SAFE ON - ESP32-S3 Live Tracker</title>
+  <style>
+    /* === Starlight Purple Theme === */
+    body {
+      font-family: 'Poppins', sans-serif;
+      text-align: center;
+      background: radial-gradient(circle at top, #3a0ca3 0%, #1a1a2e 40%, #0f0f1f 100%);
+      color: #e0d7ff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      animation: fadeIn 1.5s ease-in-out;
+    }
+
+    h1 {
+      font-size: 3em;
+      font-weight: 900;
+      color: #bb86fc;
+      text-shadow: 0 0 20px #bb86fc, 0 0 35px #8a2be2;
+      letter-spacing: 2px;
+      margin-bottom: 15px;
+      animation: glowPulse 2s infinite alternate;
+    }
+
+    p {
+      font-size: 1.1em;
+      margin-bottom: 10px;
+      color: #cbbafc;
+    }
+
+    input {
+      padding: 12px;
+      width: 80%;
+      border-radius: 10px;
+      margin-top: 15px;
+      border: 2px solid #a96fff;
+      background: #1b122e;
+      color: #e8dfff;
+      font-size: 16px;
+      outline: none;
+      transition: 0.3s;
+      text-align: center;
+    }
+    input:focus {
+      border-color: #bb86fc;
+      box-shadow: 0 0 10px #a96fff;
+    }
+
+    button {
+      background: linear-gradient(45deg, #7a00ff, #b44cff);
+      color: white;
+      border: none;
+      padding: 15px 30px;
+      border-radius: 12px;
+      font-size: 18px;
+      cursor: pointer;
+      margin: 10px;
+      transition: transform 0.2s, box-shadow 0.3s;
+      font-weight: 600;
+    }
+    button:hover {
+      transform: scale(1.08);
+      box-shadow: 0 0 20px #cfa1ff;
+    }
+
+    #status {
+      margin-top: 25px;
+      font-size: 1.1em;
+      color: #d9c7ff;
+      transition: all 0.3s ease-in-out;
+    }
+
+    @keyframes glowPulse {
+      from { text-shadow: 0 0 15px #a96fff, 0 0 30px #8a2be2; }
+      to { text-shadow: 0 0 30px #cfa1ff, 0 0 60px #a96fff; }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    footer {
+      position: absolute;
+      bottom: 15px;
+      font-size: 0.85em;
+      color: #b9a6ff;
+      text-align: center;
+      line-height: 1.4em;
+    }
+    .footer-sub {
+      font-size: 0.75em;
+      color: #8f7edb;
+    }
+  </style>
+</head>
+<body>
+  <h1>SAFE ON</h1>
+  <p>💜 Real-time ESP32-S3 Live Tracker (Starlight Purple Edition)</p>
+  <p>Enter your ESP32 IP address to start location tracking:</p>
+
+  <input type="text" id="espIP" placeholder="Enter ESP IP (e.g. 192.168.0.103)">
+  <br>
+  <button onclick="startTracking()">🚀 Start Tracking</button>
+  <button onclick="stopTracking()">🛑 Stop</button>
+
+  <p id="status"></p>
+
+  <footer>
+    Developed by Nikhil ⚡<br>
+    <span class="footer-sub">CMR SIP Lab | Batch 7 | Starlight Purple Edition</span>
+  </footer>
+
+  <script>
+    let watchID = null;
+
+    async function checkESP(espIP) {
+      try {
+        const res = await fetch(`http://${espIP}/`, { mode: "no-cors" });
+        return true; // assume reachable
+      } catch {
+        return false;
+      }
+    }
+
+    async function startTracking() {
+      const espIP = document.getElementById("espIP").value.trim();
+      const statusEl = document.getElementById("status");
+
+      if (!espIP) {
+        alert("⚠️ Enter your ESP32 IP address first!");
+        return;
+      }
+
+      statusEl.innerText = "🔍 Checking connection to ESP32...";
+
+      const reachable = await checkESP(espIP);
+      if (!reachable) {
+        statusEl.innerText = "❌ Unable to reach ESP32. Ensure same Wi-Fi network.";
+        return;
+      }
+
+      if (!navigator.geolocation) {
+        statusEl.innerText = "❌ Geolocation not supported by this browser.";
+        return;
+      }
+
+      statusEl.innerText = "📡 Requesting location access...";
+      watchID = navigator.geolocation.watchPosition(
+        pos => {
+          const lat = pos.coords.latitude.toFixed(6);
+          const lon = pos.coords.longitude.toFixed(6);
+          const url = `http://${espIP}/update?lat=${lat}&lon=${lon}`;
+
+          statusEl.innerText = `📍 Sending: ${lat}, ${lon}`;
+
+          fetch(url, { method: "GET", mode: "no-cors" })
+            .then(() => statusEl.innerText = `✅ Sent: ${lat}, ${lon}`)
+            .catch(err => statusEl.innerText = `⚠️ Send error: ${err.message}`);
+        },
+        err => {
+          statusEl.innerText = "❌ Location error: " + err.message;
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: 0,
+          timeout: 10000
+        }
+      );
+
+      statusEl.innerText = "✨ Tracking started...";
+    }
+
+    function stopTracking() {
+      const statusEl = document.getElementById("status");
+      if (watchID !== null) {
+        navigator.geolocation.clearWatch(watchID);
+        watchID = null;
+        statusEl.innerText = "🛑 Tracking stopped.";
+      } else {
+        statusEl.innerText = "ℹ️ Tracking not active.";
+      }
+    }
+  </script>
+</body>
+</html>
